@@ -52,14 +52,20 @@ test('resolveBatch adds the corporate number printed on the website', () => {
   assert.strictEqual(res[0].status, g.STATUS.OK);
 });
 
-test('resolveBatch retries with full-width alphabet when nothing is found', () => {
+test('resolveBatch sends alphanumeric names as full-width characters', () => {
   const { g, calls } = setup([
     [/name=%EF%BC%A1%EF%BC%A2%EF%BC%A3/, () => response(200, corpXml([{ corporateNumber: '4444444444444', name: '株式会社ＡＢＣ', prefectureName: '東京都', cityName: '港区' }]))],
-    [/name\?/, () => response(200, corpXml([]))]
+    [/name\?/, () => response(400, '101,商号又は名称には全角文字をUTF-8でエンコードして設定してください。\n')]
   ]);
   const res = g.resolveBatch('APPID', [{ row: 2, name: 'ABC株式会社', url: '', address: '' }], {});
   assert.strictEqual(res[0].status, g.STATUS.OK);
-  assert.strictEqual(calls.filter((u) => u.includes('/name?')).length, 2);
+  assert.strictEqual(calls.filter((u) => u.includes('/name?')).length, 1);
+});
+
+test('full-width input and spaces are sent as full-width', () => {
+  const { g } = setup([]);
+  assert.match(g.buildNameSearchUrl('ID', 'Sales Marker'), /name=%EF%BC%B3%EF%BD%81%EF%BD%8C%EF%BD%85%EF%BD%93%E3%80%80/);
+  assert.strictEqual(g.buildNameSearchUrl('ID', g.stripLegalForm('ＷＨＥＲＥ').core), g.buildNameSearchUrl('ID', 'WHERE'));
 });
 
 test('resolveBatch answers from the dictionary without calling the API', () => {
@@ -75,4 +81,13 @@ test('resolveBatch reports API errors per row', () => {
   const res = g.resolveBatch('BAD', [{ row: 2, name: '山田商事', url: '', address: '' }], {});
   assert.strictEqual(res[0].status, g.STATUS.ERROR);
   assert.match(res[0].reasons[0], /アプリケーションID/);
+});
+
+test('all same-name candidates are kept for the picker', () => {
+  const many = Array.from({ length: 54 }, (_, i) => ({ corporateNumber: String(1000000000000 + i), name: '株式会社メロウ', prefectureName: '東京都', cityName: '港区' }));
+  const { g } = setup([[/name\?/, () => response(200, corpXml(many))]]);
+  const res = g.resolveBatch('APPID', [{ row: 2, name: 'メロウ', url: '', address: '' }], {});
+  assert.strictEqual(res[0].status, g.STATUS.REVIEW);
+  assert.strictEqual(res[0].candidates.length, 54);
+  assert.ok(JSON.stringify(res[0].candidates).length < 50000);
 });

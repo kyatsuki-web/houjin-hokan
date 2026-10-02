@@ -2,9 +2,10 @@ var NTA_BASE = 'https://api.houjin-bangou.nta.go.jp/4/';
 // 国税庁から短時間の大量アクセスを控えるよう求められているため、同時リクエスト数を絞る
 var NTA_PARALLEL = 5;
 
+// APIは商号に半角英数字を受け付けない(エラー101)ため、全角に揃えて送る
 function buildNameSearchUrl(appId, name) {
   return NTA_BASE + 'name?id=' + encodeURIComponent(appId) +
-    '&name=' + encodeURIComponent(name) +
+    '&name=' + encodeURIComponent(toFullWidth(name)) +
     '&type=12&mode=2&target=1&change=0&close=1';
 }
 
@@ -69,7 +70,7 @@ function fetchNtaUrls(urls) {
 function ntaErrorMessage(code, body) {
   if (code === 403) return '法人番号APIのアプリケーションIDが正しくありません';
   if (code === 404) return '法人番号APIが見つかりません(URL変更の可能性)';
-  return '法人番号APIエラー(' + code + '): ' + String(body).slice(0, 100);
+  return '法人番号APIエラー(' + code + '): ' + String(body).trim().slice(0, 100);
 }
 
 function searchCorporationsByName(appId, names) {

@@ -7,7 +7,8 @@ var STATUS = {
 var CONFIRM_SCORE = 80;
 var CONFIRM_GAP = 15;
 var MIN_CANDIDATE_SCORE = 30;
-var MAX_STORED_CANDIDATES = 20;
+// 候補はすべて選べるようにする。上限はセル1つに保存できる文字数(5万字)から逆算
+var MAX_STORED_CANDIDATES = 150;
 var EXACT_NAME_SCORE = 70;
 
 function buildHints(siteInfo, addressText) {

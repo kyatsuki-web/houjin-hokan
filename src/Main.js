@@ -207,14 +207,12 @@ function resolveBatch(appId, batch, dictionary) {
   var queries = todo.map(function (i) { return stripLegalForm(batch[i].name).core; });
   var searches = searchCorporationsByName(appId, queries);
 
-  // 0件のときは「英字を全角にして再検索」→「HPに書かれた正式社名で再検索」の順に試す
+  // 0件のときはHPに書かれた正式社名で再検索する(サービス名と社名が違う会社向け)
   var retryIdx = [];
   var retryQueries = [];
   todo.forEach(function (i, k) {
     if (!searches[k].ok || searches[k].corporations.length) return;
-    var alt = '';
-    if (/[A-Za-z0-9]/.test(queries[k])) alt = toFullWidth(queries[k]);
-    else if (siteInfos[k] && siteInfos[k].companyNames.length) alt = stripLegalForm(siteInfos[k].companyNames[0]).core;
+    var alt = siteInfos[k] && siteInfos[k].companyNames.length ? stripLegalForm(siteInfos[k].companyNames[0]).core : '';
     if (alt && alt !== queries[k]) {
       retryIdx.push(k);
       retryQueries.push(alt);

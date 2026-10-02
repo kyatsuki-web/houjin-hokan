@@ -182,9 +182,10 @@ var NTA_BASE = 'https://api.houjin-bangou.nta.go.jp/4/';
 // 国税庁から短時間の大量アクセスを控えるよう求められているため、同時リクエスト数を絞る
 var NTA_PARALLEL = 5;
 
+// APIは商号に半角英数字を受け付けない(エラー101)ため、全角に揃えて送る
 function buildNameSearchUrl(appId, name) {
   return NTA_BASE + 'name?id=' + encodeURIComponent(appId) +
-    '&name=' + encodeURIComponent(name) +
+    '&name=' + encodeURIComponent(toFullWidth(name)) +
     '&type=12&mode=2&target=1&change=0&close=1';
 }
 
@@ -249,7 +250,7 @@ function fetchNtaUrls(urls) {
 function ntaErrorMessage(code, body) {
   if (code === 403) return '法人番号APIのアプリケーションIDが正しくありません';
   if (code === 404) return '法人番号APIが見つかりません(URL変更の可能性)';
-  return '法人番号APIエラー(' + code + '): ' + String(body).slice(0, 100);
+  return '法人番号APIエラー(' + code + '): ' + String(body).trim().slice(0, 100);
 }
 
 function searchCorporationsByName(appId, names) {
@@ -439,7 +440,8 @@ var STATUS = {
 var CONFIRM_SCORE = 80;
 var CONFIRM_GAP = 15;
 var MIN_CANDIDATE_SCORE = 30;
-var MAX_STORED_CANDIDATES = 20;
+// 候補はすべて選べるようにする。上限はセル1つに保存できる文字数(5万字)から逆算
+var MAX_STORED_CANDIDATES = 150;
 var EXACT_NAME_SCORE = 70;
 
 function buildHints(siteInfo, addressText) {
@@ -789,14 +791,12 @@ function resolveBatch(appId, batch, dictionary) {
   var queries = todo.map(function (i) { return stripLegalForm(batch[i].name).core; });
   var searches = searchCorporationsByName(appId, queries);
 
-  // 0件のときは「英字を全角にして再検索」→「HPに書かれた正式社名で再検索」の順に試す
+  // 0件のときはHPに書かれた正式社名で再検索する(サービス名と社名が違う会社向け)
   var retryIdx = [];
   var retryQueries = [];
   todo.forEach(function (i, k) {
     if (!searches[k].ok || searches[k].corporations.length) return;
-    var alt = '';
-    if (/[A-Za-z0-9]/.test(queries[k])) alt = toFullWidth(queries[k]);
-    else if (siteInfos[k] && siteInfos[k].companyNames.length) alt = stripLegalForm(siteInfos[k].companyNames[0]).core;
+    var alt = siteInfos[k] && siteInfos[k].companyNames.length ? stripLegalForm(siteInfos[k].companyNames[0]).core : '';
     if (alt && alt !== queries[k]) {
       retryIdx.push(k);
       retryQueries.push(alt);
