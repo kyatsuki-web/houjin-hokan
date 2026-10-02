@@ -123,12 +123,7 @@
       var p = prefOf(c.address);
       if (p && prefs.indexOf(p) < 0) prefs.push(p);
     });
-    if (item.candidates.length > 5) {
-      html += '<div class="filters"><input id="q" placeholder="社名・住所で絞り込み" oninput="state.query=this.value;renderList()">' +
-        '<select onchange="state.pref=this.value;renderList()"><option value="">全都道府県</option>' +
-        prefs.map(function (p) { return '<option>' + esc(p) + '</option>'; }).join('') + '</select></div>';
-    }
-    html += '<div id="count" class="muted"></div><div id="list"></div>';
+    html += '<div id="filters" class="filters"></div><div id="count" class="muted"></div><div id="list"></div>';
     html += '<details><summary class="muted">候補にない場合: 法人番号を直接入力</summary>' +
       '<div class="manual"><input id="num" placeholder="13桁の法人番号"><button onclick="lookup()">検索</button></div></details>';
     html += '<div class="bar"><label class="muted"><input type="checkbox" id="remember" checked> この選択を覚えて、次回から自動で確定する</label>' +
@@ -138,8 +133,23 @@
       '<button onclick="move(1)"' + (state.index >= state.items.length - 1 ? ' disabled' : '') + '>スキップ →</button></div>' +
       '<div id="msg" class="msg"></div></div>';
     app.innerHTML = html;
+    if (item.candidates.length > 5) buildFilters(prefs);
     renderList();
     google.script.run.focusRow(state.sheetName, item.row);
+  }
+
+  // script 内の文字列に select/option のタグを書くと HtmlService が「形式が正しくない HTML」で弾いたため DOM で組み立てる
+  function buildFilters(prefs) {
+    var box = document.getElementById('filters');
+    var q = document.createElement('input');
+    q.placeholder = '社名・住所で絞り込み';
+    q.addEventListener('input', function () { state.query = q.value; renderList(); });
+    var sel = document.createElement('select');
+    sel.add(new Option('全都道府県', ''));
+    prefs.forEach(function (p) { sel.add(new Option(p, p)); });
+    sel.addEventListener('change', function () { state.pref = sel.value; renderList(); });
+    box.appendChild(q);
+    box.appendChild(sel);
   }
 
   function renderList() {
@@ -149,7 +159,7 @@
     document.getElementById('list').innerHTML = list.map(function (c) {
       var cls = c.score === '' ? '' : c.score >= 80 ? '' : c.score >= 50 ? 'mid' : 'low';
       var on = state.selected === c.corporateNumber;
-      return '<label class="cand' + (on ? ' selected' : '') + '" onclick="pick(\'' + esc(c.corporateNumber) + '\')">' +
+      return '<label class="cand' + (on ? ' selected' : '') + '" data-num="' + esc(c.corporateNumber) + '">' +
         (c.score === '' ? '' : '<span class="score ' + cls + '">' + c.score + '%</span>') +
         '<input type="radio" name="c"' + (on ? ' checked' : '') + '>' +
         '<span class="title">' + esc(c.name) + '</span>' + (c.closed ? '<span class="closed">閉鎖</span>' : '') +
@@ -157,6 +167,9 @@
         '<div class="muted">法人番号 ' + esc(c.corporateNumber) + '</div>' +
         '<div class="reasons">' + esc((c.reasons || []).join(' / ')) + '</div></label>';
     }).join('');
+    Array.prototype.forEach.call(document.querySelectorAll('#list .cand'), function (el) {
+      el.addEventListener('click', function () { pick(el.getAttribute('data-num')); });
+    });
     updateButtons();
   }
 
