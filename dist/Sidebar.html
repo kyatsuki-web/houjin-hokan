@@ -46,18 +46,22 @@
   var state = { sheetName: '', items: [], index: 0, selected: null, manual: null, busy: false, query: '', pref: '' };
 
   function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    return String(s == null ? '' : s).replace(/[\x26\x3c\x3e\x22\x27]/g, function (c) {
+      return '\x26#' + c.charCodeAt(0) + ';';
     });
   }
 
   function load() {
     google.script.run.withSuccessHandler(function (res) {
-      state.sheetName = res.sheetName;
-      state.items = res.items;
-      state.index = 0;
-      reset();
-      render();
+      try {
+        state.sheetName = res.sheetName;
+        state.items = res.items;
+        state.index = 0;
+        reset();
+        render();
+      } catch (e) {
+        showError(e);
+      }
     }).withFailureHandler(showError).getReviewItems();
   }
 
@@ -105,33 +109,33 @@
   function render() {
     var app = document.getElementById('app');
     if (!state.items.length) {
-      app.innerHTML = '<div class="empty">🎉 要確認の行はありません<br><br><button onclick="load()">再読み込み</button></div>';
+      app.innerHTML = '\x3cdiv class="empty">🎉 要確認の行はありません\x3cbr>\x3cbr>\x3cbutton onclick="load()">再読み込み\x3c/button>\x3c/div>';
       return;
     }
     var item = current();
     var html = '';
-    html += '<div class="progress"><span><b>' + (state.index + 1) + '</b> / ' + state.items.length + '件</span>' +
-      '<span class="muted">' + esc(state.sheetName) + ' ' + item.row + '行目</span></div>';
-    html += '<div class="input"><div class="name">' + esc(item.inputName) + '</div>';
-    if (item.address) html += '<div class="muted">住所: ' + esc(item.address) + '</div>';
-    if (item.url) html += '<div class="muted"><a href="' + esc(/^https?:/i.test(item.url) ? item.url : 'https://' + item.url) + '" target="_blank">HPを開く ↗</a></div>';
-    html += '<div class="muted"><a href="https://www.google.com/search?q=' + encodeURIComponent(item.inputName + ' 会社概要') + '" target="_blank">Googleで調べる ↗</a></div></div>';
-    if (item.stale) html += '<div class="msg error">候補データが見つかりません。この行を「やり直す」で再判定してください。</div>';
+    html += '\x3cdiv class="progress">\x3cspan>\x3cb>' + (state.index + 1) + '\x3c/b> / ' + state.items.length + '件\x3c/span>' +
+      '\x3cspan class="muted">' + esc(state.sheetName) + ' ' + item.row + '行目\x3c/span>\x3c/div>';
+    html += '\x3cdiv class="input">\x3cdiv class="name">' + esc(item.inputName) + '\x3c/div>';
+    if (item.address) html += '\x3cdiv class="muted">住所: ' + esc(item.address) + '\x3c/div>';
+    if (item.url) html += '\x3cdiv class="muted">\x3ca href="' + esc(/^https?:/i.test(item.url) ? item.url : 'https://' + item.url) + '" target="_blank">HPを開く ↗\x3c/a>\x3c/div>';
+    html += '\x3cdiv class="muted">\x3ca href="https://www.google.com/search?q=' + encodeURIComponent(item.inputName + ' 会社概要') + '" target="_blank">Googleで調べる ↗\x3c/a>\x3c/div>\x3c/div>';
+    if (item.stale) html += '\x3cdiv class="msg error">候補データが見つかりません。この行を「やり直す」で再判定してください。\x3c/div>';
 
     var prefs = [];
     item.candidates.forEach(function (c) {
       var p = prefOf(c.address);
       if (p && prefs.indexOf(p) < 0) prefs.push(p);
     });
-    html += '<div id="filters" class="filters"></div><div id="count" class="muted"></div><div id="list"></div>';
-    html += '<details><summary class="muted">候補にない場合: 法人番号を直接入力</summary>' +
-      '<div class="manual"><input id="num" placeholder="13桁の法人番号"><button onclick="lookup()">検索</button></div></details>';
-    html += '<div class="bar"><label class="muted"><input type="checkbox" id="remember" checked> この選択を覚えて、次回から自動で確定する</label>' +
-      '<div class="actions"><button class="primary" id="ok" onclick="confirmSel()">確定</button>' +
-      '<button id="ng" onclick="noMatch()">該当なし</button></div>' +
-      '<div class="actions"><button onclick="move(-1)"' + (state.index === 0 ? ' disabled' : '') + '>← 前へ</button>' +
-      '<button onclick="move(1)"' + (state.index >= state.items.length - 1 ? ' disabled' : '') + '>スキップ →</button></div>' +
-      '<div id="msg" class="msg"></div></div>';
+    html += '\x3cdiv id="filters" class="filters">\x3c/div>\x3cdiv id="count" class="muted">\x3c/div>\x3cdiv id="list">\x3c/div>';
+    html += '\x3cdetails>\x3csummary class="muted">候補にない場合: 法人番号を直接入力\x3c/summary>' +
+      '\x3cdiv class="manual">\x3cinput id="num" placeholder="13桁の法人番号">\x3cbutton onclick="lookup()">検索\x3c/button>\x3c/div>\x3c/details>';
+    html += '\x3cdiv class="bar">\x3clabel class="muted">\x3cinput type="checkbox" id="remember" checked> この選択を覚えて、次回から自動で確定する\x3c/label>' +
+      '\x3cdiv class="actions">\x3cbutton class="primary" id="ok" onclick="confirmSel()">確定\x3c/button>' +
+      '\x3cbutton id="ng" onclick="noMatch()">該当なし\x3c/button>\x3c/div>' +
+      '\x3cdiv class="actions">\x3cbutton onclick="move(-1)"' + (state.index === 0 ? ' disabled' : '') + '>← 前へ\x3c/button>' +
+      '\x3cbutton onclick="move(1)"' + (state.index >= state.items.length - 1 ? ' disabled' : '') + '>スキップ →\x3c/button>\x3c/div>' +
+      '\x3cdiv id="msg" class="msg">\x3c/div>\x3c/div>';
     app.innerHTML = html;
     if (item.candidates.length > 5) buildFilters(prefs);
     renderList();
@@ -159,13 +163,13 @@
     document.getElementById('list').innerHTML = list.map(function (c) {
       var cls = c.score === '' ? '' : c.score >= 80 ? '' : c.score >= 50 ? 'mid' : 'low';
       var on = state.selected === c.corporateNumber;
-      return '<label class="cand' + (on ? ' selected' : '') + '" data-num="' + esc(c.corporateNumber) + '">' +
-        (c.score === '' ? '' : '<span class="score ' + cls + '">' + c.score + '%</span>') +
-        '<input type="radio" name="c"' + (on ? ' checked' : '') + '>' +
-        '<span class="title">' + esc(c.name) + '</span>' + (c.closed ? '<span class="closed">閉鎖</span>' : '') +
-        '<div class="muted">' + esc(c.address) + '</div>' +
-        '<div class="muted">法人番号 ' + esc(c.corporateNumber) + '</div>' +
-        '<div class="reasons">' + esc((c.reasons || []).join(' / ')) + '</div></label>';
+      return '\x3clabel class="cand' + (on ? ' selected' : '') + '" data-num="' + esc(c.corporateNumber) + '">' +
+        (c.score === '' ? '' : '\x3cspan class="score ' + cls + '">' + c.score + '%\x3c/span>') +
+        '\x3cinput type="radio" name="c"' + (on ? ' checked' : '') + '>' +
+        '\x3cspan class="title">' + esc(c.name) + '\x3c/span>' + (c.closed ? '\x3cspan class="closed">閉鎖\x3c/span>' : '') +
+        '\x3cdiv class="muted">' + esc(c.address) + '\x3c/div>' +
+        '\x3cdiv class="muted">法人番号 ' + esc(c.corporateNumber) + '\x3c/div>' +
+        '\x3cdiv class="reasons">' + esc((c.reasons || []).join(' / ')) + '\x3c/div>\x3c/label>';
     }).join('');
     Array.prototype.forEach.call(document.querySelectorAll('#list .cand'), function (el) {
       el.addEventListener('click', function () { pick(el.getAttribute('data-num')); });
@@ -228,7 +232,7 @@
     state.busy = false;
     var el = document.getElementById('msg');
     if (!el) {
-      document.getElementById('app').innerHTML = '<div class="msg error">' + esc(e.message || e) + '</div>';
+      document.getElementById('app').innerHTML = '\x3cdiv class="msg error">' + esc(e.message || e) + '\x3c/div>';
       return;
     }
     updateButtons();

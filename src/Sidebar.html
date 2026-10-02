@@ -46,18 +46,22 @@
   var state = { sheetName: '', items: [], index: 0, selected: null, manual: null, busy: false, query: '', pref: '' };
 
   function esc(s) {
-    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
-      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    return String(s == null ? '' : s).replace(/[\x26\x3c\x3e\x22\x27]/g, function (c) {
+      return '&#' + c.charCodeAt(0) + ';';
     });
   }
 
   function load() {
     google.script.run.withSuccessHandler(function (res) {
-      state.sheetName = res.sheetName;
-      state.items = res.items;
-      state.index = 0;
-      reset();
-      render();
+      try {
+        state.sheetName = res.sheetName;
+        state.items = res.items;
+        state.index = 0;
+        reset();
+        render();
+      } catch (e) {
+        showError(e);
+      }
     }).withFailureHandler(showError).getReviewItems();
   }
 
