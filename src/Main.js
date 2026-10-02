@@ -23,6 +23,7 @@ function onOpen() {
     .addItem('↺ 選択した行をやり直す', 'resetSelectedRows')
     .addItem('⏹ 実行中の処理を止める', 'stopRun')
     .addSeparator()
+    .addItem('📖 マニュアルを表示', 'showManual')
     .addItem('⚙ 法人番号APIのIDを設定', 'configureAppId')
     .addToUi();
 }
