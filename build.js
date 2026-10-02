@@ -2,7 +2,7 @@
 const fs = require('fs');
 const path = require('path');
 
-const order = ['Normalize.js', 'Nta.js', 'Website.js', 'Match.js', 'Main.js', 'Review.js', 'Manual.js'];
+const order = ['Normalize.js', 'Nta.js', 'Website.js', 'Match.js', 'Main.js', 'Review.js', 'Manual.js', 'Export.js'];
 const src = path.join(__dirname, 'src');
 const dist = path.join(__dirname, 'dist');
 fs.mkdirSync(dist, { recursive: true });

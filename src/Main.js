@@ -19,6 +19,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu(MENU_TITLE)
     .addItem('▶ 補完を実行(このシート)', 'startRun')
     .addItem('🟡 要確認の候補を選ぶ', 'openReviewSidebar')
+    .addItem('⬇ CSVを出力', 'exportCsv')
     .addSeparator()
     .addItem('↺ 選択した行をやり直す', 'resetSelectedRows')
     .addItem('⏹ 実行中の処理を止める', 'stopRun')

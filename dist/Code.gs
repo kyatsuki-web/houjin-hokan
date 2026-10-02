@@ -603,6 +603,7 @@ function onOpen() {
   SpreadsheetApp.getUi().createMenu(MENU_TITLE)
     .addItem('▶ 補完を実行(このシート)', 'startRun')
     .addItem('🟡 要確認の候補を選ぶ', 'openReviewSidebar')
+    .addItem('⬇ CSVを出力', 'exportCsv')
     .addSeparator()
     .addItem('↺ 選択した行をやり直す', 'resetSelectedRows')
     .addItem('⏹ 実行中の処理を止める', 'stopRun')
@@ -1147,21 +1148,27 @@ var MANUAL_ROWS = [
   ['td', 'この選択を覚える(チェック)', '標準でオン。次回から同じ会社を自動で🟢確定にする', ''],
   ['p', '「候補を取り直しています…」と出たときは、数秒待つと候補が表示されます。'],
 
-  ['h2', '6. 補完辞書・やり直し・停止'],
+  ['h2', '6. CSVを出力する'],
+  ['p', '「🏢 法人補完」→「⬇ CSVを出力」を押すと、🟢確定の行だけを「法人番号・企業名・住所」の3列にしたCSVファイルがダウンロードされます。'],
+  ['li', '企業名と住所は、国税庁に登録された正式名称と本店所在地です'],
+  ['li', '🟡要確認の行は出力されません。先に候補を選んで確定してください'],
+  ['li', 'ファイル名は「houjin_bangou_日付.csv」です。保存されない場合は、表示される「もう一度ダウンロード」を押してください'],
+
+  ['h2', '7. 補完辞書・やり直し・停止'],
   ['p', '補完辞書: 「覚える」にチェックを入れて確定すると、「補完辞書」シートに記録されます。次回からは、同じURL(ドメイン)または同じ社名＋都道府県の行が、検索せずに🟢確定になります。'],
   ['li', '間違えて覚えさせたときは、「補完辞書」シートのその行を削除してください'],
   ['li', '非表示の「_候補」シートはツールが候補を保存する場所です。編集・削除しないでください'],
   ['p', 'やり直し: 判定をやり直したい行を選んで(複数行可)、「↺ 選択した行をやり直す」→「▶ 補完を実行」。URLや住所を後から足した行は、この方法で再判定すると精度が上がります。'],
   ['p', '停止: 「⏹ 実行中の処理を止める」で自動の続き処理を止められます。もう一度「▶ 補完を実行」を押すと続きから再開します。'],
 
-  ['h2', '7. 精度を上げるコツ'],
+  ['h2', '8. 精度を上げるコツ'],
   ['p', '一番効くのは、URL列にHPのアドレスを入れることです。「WHERE」「メロウ」のような短い社名は同名の法人が全国に50〜90社あり、社名だけでは🟡要確認になります。'],
   ['li', 'URLを入れる: HPの会社概要から郵便番号・住所・法人番号を読み取り、自動で絞り込む'],
   ['li', '住所を入れる: 都道府県だけでも、同名の会社が他の県にある場合は絞り込める'],
   ['li', '登記上の社名を入れる: サービス名・略称よりも正式名称の方が当たりやすい'],
   ['p', 'HPが読み込めなかった場合は「判定の根拠」に「HPを読み込めず」と出ます。画像や動きの多いサイトは読めないことがあるので、住所列で補ってください。'],
 
-  ['h2', '8. 困ったとき'],
+  ['h2', '9. 困ったとき'],
   ['th', '症状', '対処', ''],
   ['td', 'メニューに「🏢 法人補完」が出ない', 'スプレッドシートを再読み込みして数秒待つ', ''],
   ['td', '「会社名の見出しがある列が見つかりません」', '1行目の見出しを「会社名」にする', ''],
@@ -1172,7 +1179,7 @@ var MANUAL_ROWS = [
   ['td', '「行の並びが変わっています」', '候補の画面を開き直す(並べ替えや行の削除をしたときに出る)', ''],
   ['td', '🟢確定なのに違う会社だった', 'その行を「↺ やり直す」。辞書に記録されていれば「補完辞書」シートの該当行も削除する', ''],
 
-  ['h2', '9. 注意事項'],
+  ['h2', '10. 注意事項'],
   ['li', '判定の実行中に、行の並べ替え・削除をしないでください。結果が別の行に書かれることがあります'],
   ['li', '🟢確定でも100%正しいとは限りません。契約や請求など重要な用途では、正式名称と住所を目で確認してください'],
   ['li', '法人番号を持たない個人事業主は、必ず🔴該当なしになります'],
@@ -1219,3 +1226,69 @@ function manualCells(r) {
   while (cells.length < MANUAL_WIDTHS.length) cells.push('');
   return cells;
 }
+
+// ===== Export.js =====
+var CSV_HEADERS = ['法人番号', '企業名', '住所'];
+
+function csvField(v) {
+  var s = String(v == null ? '' : v);
+  return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+}
+
+function buildCsv(rows) {
+  return [CSV_HEADERS].concat(rows).map(function (r) { return r.map(csvField).join(','); }).join('\r\n') + '\r\n';
+}
+
+function confirmedRows(sheet) {
+  var cols = detectColumns(sheet);
+  if (cols.output < 0 || sheet.getLastRow() < 2) return [];
+  var out = sheet.getRange(2, cols.output + 1, sheet.getLastRow() - 1, OUTPUT_HEADERS.length).getValues();
+  return out.filter(function (v) { return v[0] === STATUS.OK && v[2]; })
+    .map(function (v) { return [String(v[2]), String(v[3]), String(v[4])]; });
+}
+
+function exportCsv() {
+  var ui = SpreadsheetApp.getUi();
+  var rows = confirmedRows(SpreadsheetApp.getActiveSheet());
+  if (!rows.length) {
+    ui.alert('このシートに' + STATUS.OK + 'の行がありません。先に「補完を実行」してください');
+    return;
+  }
+  ui.showModalDialog(HtmlService.createHtmlOutput(CSV_DIALOG_HTML).setWidth(360).setHeight(160), 'CSVを出力');
+}
+
+function getCsvExport() {
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var rows = confirmedRows(sheet);
+  var date = Utilities.formatDate(new Date(), 'Asia/Tokyo', 'yyyyMMdd');
+  // 日本語のファイル名はブラウザによって「download」に置き換えられるため英数字にする
+  return { filename: 'houjin_bangou_' + date + '.csv', csv: buildCsv(rows), count: rows.length };
+}
+
+// HtmlService は script 内の文字列にあるタグを HTML として解釈して壊すため、画面部品は DOM で組み立てる
+var CSV_DIALOG_HTML = [
+  '<div id="msg" style="font:13px sans-serif;margin-bottom:12px">準備中…</div>',
+  '<button id="dl" style="display:none;padding:8px 16px;font-size:13px">もう一度ダウンロード</button>',
+  '<script>',
+  'var data;',
+  'function save() {',
+  '  var blob = new Blob(["\\ufeff" + data.csv], { type: "text/csv;charset=utf-8" });',
+  '  var a = document.createElement("a");',
+  '  a.href = URL.createObjectURL(blob);',
+  '  a.download = data.filename;',
+  '  document.body.appendChild(a);',
+  '  a.click();',
+  '  a.remove();',
+  '}',
+  'google.script.run.withSuccessHandler(function (d) {',
+  '  data = d;',
+  '  document.getElementById("msg").textContent = d.count + "件を「" + d.filename + "」として保存しました。保存されない場合は下のボタンを押してください。";',
+  '  var b = document.getElementById("dl");',
+  '  b.style.display = "inline-block";',
+  '  b.onclick = save;',
+  '  save();',
+  '}).withFailureHandler(function (e) {',
+  '  document.getElementById("msg").textContent = "エラー: " + (e.message || e);',
+  '}).getCsvExport();',
+  '</script>'
+].join('\n');

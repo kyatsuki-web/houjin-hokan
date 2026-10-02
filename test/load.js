@@ -2,7 +2,7 @@ const fs = require('fs');
 const path = require('path');
 const vm = require('vm');
 
-const FILES = ['Normalize.js', 'Nta.js', 'Website.js', 'Match.js', 'Main.js', 'Review.js', 'Manual.js'];
+const FILES = ['Normalize.js', 'Nta.js', 'Website.js', 'Match.js', 'Main.js', 'Review.js', 'Manual.js', 'Export.js'];
 
 function loadGas(globals = {}) {
   const ctx = vm.createContext({ ...globals });
