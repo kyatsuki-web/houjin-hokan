@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html>
+<head>
+<base target="_top">
+<style>
+  body { font-family: "Hiragino Sans", "Noto Sans JP", sans-serif; font-size: 13px; color: #202124; margin: 0; padding: 12px; }
+  .muted { color: #5f6368; font-size: 12px; }
+  .progress { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+  .input { background: #f8f9fa; border-radius: 8px; padding: 10px; margin-bottom: 10px; }
+  .input .name { font-size: 15px; font-weight: bold; word-break: break-all; }
+  .input a { color: #1a73e8; text-decoration: none; }
+  .cand { display: block; border: 1px solid #dadce0; border-radius: 8px; padding: 8px 10px; margin-bottom: 6px; cursor: pointer; }
+  .cand:hover { border-color: #1a73e8; }
+  .cand.selected { border-color: #1a73e8; background: #e8f0fe; }
+  .cand input { margin-right: 6px; }
+  .cand .title { font-weight: bold; }
+  .score { float: right; font-weight: bold; color: #188038; }
+  .score.mid { color: #e37400; }
+  .score.low { color: #c5221f; }
+  .reasons { font-size: 11px; color: #5f6368; margin-top: 3px; }
+  .closed { background: #fce8e6; color: #c5221f; border-radius: 4px; padding: 0 4px; font-size: 11px; margin-left: 4px; }
+  .actions { display: flex; gap: 6px; margin: 10px 0; }
+  button { flex: 1; padding: 8px; border-radius: 6px; border: 1px solid #dadce0; background: #fff; cursor: pointer; font-size: 13px; }
+  button.primary { background: #1a73e8; color: #fff; border-color: #1a73e8; }
+  button:disabled { opacity: .5; cursor: default; }
+  .manual { display: flex; gap: 6px; margin-top: 6px; }
+  .manual input { flex: 2; padding: 6px; border: 1px solid #dadce0; border-radius: 6px; }
+  .manual button { flex: 1; }
+  .msg { margin-top: 8px; font-size: 12px; }
+  .msg.error { color: #c5221f; }
+  .empty { text-align: center; padding: 40px 0; color: #5f6368; }
+  details { margin-top: 12px; }
+  .notice { margin-top: 16px; font-size: 10px; color: #80868b; }
+</style>
+</head>
+<body>
+<div id="app"><div class="empty">読み込み中…</div></div>
+<div class="notice">このサービスは、国税庁法人番号システムのWeb-API機能を利用して取得した情報をもとに作成しているが、サービスの内容は国税庁によって保証されたものではない。</div>
+<script>
+  var state = { sheetName: '', items: [], index: 0, selected: null, manual: null, busy: false };
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+
+  function load() {
+    google.script.run.withSuccessHandler(function (res) {
+      state.sheetName = res.sheetName;
+      state.items = res.items;
+      state.index = 0;
+      reset();
+      render();
+    }).withFailureHandler(showError).getReviewItems();
+  }
+
+  function reset() {
+    state.selected = null;
+    state.manual = null;
+  }
+
+  function current() { return state.items[state.index]; }
+
+  function candidateList() {
+    var item = current();
+    var list = item.candidates.slice();
+    if (state.manual) list.unshift(state.manual);
+    return list;
+  }
+
+  function render() {
+    var app = document.getElementById('app');
+    if (!state.items.length) {
+      app.innerHTML = '<div class="empty">🎉 要確認の行はありません<br><br><button onclick="load()">再読み込み</button></div>';
+      return;
+    }
+    var item = current();
+    var list = candidateList();
+    var html = '';
+    html += '<div class="progress"><span><b>' + (state.index + 1) + '</b> / ' + state.items.length + '件</span>' +
+      '<span class="muted">' + esc(state.sheetName) + ' ' + item.row + '行目</span></div>';
+    html += '<div class="input"><div class="name">' + esc(item.inputName) + '</div>';
+    if (item.address) html += '<div class="muted">住所: ' + esc(item.address) + '</div>';
+    if (item.url) html += '<div class="muted"><a href="' + esc(/^https?:/i.test(item.url) ? item.url : 'https://' + item.url) + '" target="_blank">HPを開く ↗</a></div>';
+    html += '<div class="muted"><a href="https://www.google.com/search?q=' + encodeURIComponent(item.inputName + ' 会社概要') + '" target="_blank">Googleで調べる ↗</a></div></div>';
+
+    if (item.stale) html += '<div class="msg error">候補データが見つかりません。この行を「やり直す」で再判定してください。</div>';
+    list.forEach(function (c, i) {
+      var cls = c.score === '' ? '' : c.score >= 80 ? '' : c.score >= 50 ? 'mid' : 'low';
+      var sel = state.selected === i ? ' selected' : '';
+      html += '<label class="cand' + sel + '" onclick="pick(' + i + ')">' +
+        (c.score === '' ? '' : '<span class="score ' + cls + '">' + c.score + '%</span>') +
+        '<input type="radio" name="c"' + (state.selected === i ? ' checked' : '') + '>' +
+        '<span class="title">' + esc(c.name) + '</span>' + (c.closed ? '<span class="closed">閉鎖</span>' : '') +
+        '<div class="muted">' + esc(c.address) + '</div>' +
+        '<div class="muted">法人番号 ' + esc(c.corporateNumber) + '</div>' +
+        '<div class="reasons">' + esc((c.reasons || []).join(' / ')) + '</div></label>';
+    });
+
+    html += '<label class="muted"><input type="checkbox" id="remember" checked> この選択を覚えて、次回から自動で確定する</label>';
+    html += '<div class="actions">' +
+      '<button class="primary" onclick="confirmSel()"' + (state.selected === null || state.busy ? ' disabled' : '') + '>確定</button>' +
+      '<button onclick="noMatch()"' + (state.busy ? ' disabled' : '') + '>該当なし</button></div>';
+    html += '<div class="actions"><button onclick="move(-1)"' + (state.index === 0 ? ' disabled' : '') + '>← 前へ</button>' +
+      '<button onclick="move(1)"' + (state.index >= state.items.length - 1 ? ' disabled' : '') + '>スキップ →</button></div>';
+    html += '<details><summary class="muted">候補にない場合: 法人番号を直接入力</summary>' +
+      '<div class="manual"><input id="num" placeholder="13桁の法人番号"><button onclick="lookup()">検索</button></div></details>';
+    html += '<div id="msg" class="msg"></div>';
+    app.innerHTML = html;
+    google.script.run.focusRow(state.sheetName, item.row);
+  }
+
+  function pick(i) {
+    state.selected = i;
+    render();
+  }
+
+  function move(d) {
+    state.index = Math.max(0, Math.min(state.items.length - 1, state.index + d));
+    reset();
+    render();
+  }
+
+  function done() {
+    state.items.splice(state.index, 1);
+    if (state.index >= state.items.length) state.index = Math.max(0, state.items.length - 1);
+    state.busy = false;
+    reset();
+    render();
+  }
+
+  function confirmSel() {
+    var item = current();
+    var c = candidateList()[state.selected];
+    var remember = document.getElementById('remember').checked;
+    state.busy = true;
+    render();
+    google.script.run.withSuccessHandler(done).withFailureHandler(showError)
+      .confirmCandidate(state.sheetName, item.row, item.inputName, c, remember);
+  }
+
+  function noMatch() {
+    var item = current();
+    state.busy = true;
+    render();
+    google.script.run.withSuccessHandler(done).withFailureHandler(showError)
+      .markNoMatch(state.sheetName, item.row, item.inputName);
+  }
+
+  function lookup() {
+    var num = document.getElementById('num').value;
+    google.script.run.withSuccessHandler(function (c) {
+      state.manual = c;
+      state.selected = 0;
+      render();
+    }).withFailureHandler(showError).lookupNumberForReview(num);
+  }
+
+  function showError(e) {
+    state.busy = false;
+    var el = document.getElementById('msg');
+    if (!el) {
+      document.getElementById('app').innerHTML = '<div class="msg error">' + esc(e.message || e) + '</div>';
+      return;
+    }
+    render();
+    el = document.getElementById('msg');
+    el.className = 'msg error';
+    el.textContent = e.message || String(e);
+  }
+
+  load();
+</script>
+</body>
+</html>

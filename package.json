@@ -1,0 +1,9 @@
+{
+  "name": "houjin-hokan",
+  "private": true,
+  "description": "Google Sheets add-on script that fills in Japanese corporate numbers for sales lists",
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "build": "node build.js"
+  }
+}
