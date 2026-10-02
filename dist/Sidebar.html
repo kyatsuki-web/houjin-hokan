@@ -120,7 +120,7 @@
     if (item.address) html += '\x3cdiv class="muted">住所: ' + esc(item.address) + '\x3c/div>';
     if (item.url) html += '\x3cdiv class="muted">\x3ca href="' + esc(/^https?:/i.test(item.url) ? item.url : 'https://' + item.url) + '" target="_blank">HPを開く ↗\x3c/a>\x3c/div>';
     html += '\x3cdiv class="muted">\x3ca href="https://www.google.com/search?q=' + encodeURIComponent(item.inputName + ' 会社概要') + '" target="_blank">Googleで調べる ↗\x3c/a>\x3c/div>\x3c/div>';
-    if (item.stale) html += '\x3cdiv class="msg error">候補データが見つかりません。この行を「やり直す」で再判定してください。\x3c/div>';
+    if (item.stale) html += '\x3cdiv class="msg">候補を取り直しています…\x3c/div>';
 
     var prefs = [];
     item.candidates.forEach(function (c) {
@@ -140,6 +140,20 @@
     if (item.candidates.length > 5) buildFilters(prefs);
     renderList();
     google.script.run.focusRow(state.sheetName, item.row);
+    if (item.stale) refresh(item);
+  }
+
+  function refresh(item) {
+    google.script.run.withSuccessHandler(function (res) {
+      if (current() !== item) return;
+      if (res.status === res.reviewStatus) {
+        item.candidates = res.candidates;
+        item.stale = false;
+        render();
+      } else {
+        done();
+      }
+    }).withFailureHandler(showError).refreshCandidates(state.sheetName, item.row, item.inputName);
   }
 
   // script 内の文字列に select/option のタグを書くと HtmlService が「形式が正しくない HTML」で弾いたため DOM で組み立てる

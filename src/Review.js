@@ -13,7 +13,7 @@ function getReviewItems() {
   values.forEach(function (v, i) {
     if (String(v[cols.output]) !== STATUS.REVIEW) return;
     var row = i + 2;
-    var entry = store.entries[storeKey(sheet.getName(), row)];
+    var entry = store.entries[storeKey(sheet, row)];
     var name = String(v[cols.name] || '');
     items.push({
       row: row,
@@ -75,8 +75,22 @@ function markNoMatch(sheetName, row, expectedName) {
 
 function dropStoredCandidates(sheet, row) {
   var store = loadCandidateStore(sheet.getParent());
-  delete store.entries[storeKey(sheet.getName(), row)];
+  delete store.entries[storeKey(sheet, row)];
   saveCandidateStore(store);
+}
+
+function refreshCandidates(sheetName, row, expectedName) {
+  var sheet = reviewSheet(sheetName);
+  var ctx = rowItem(sheet, row, expectedName);
+  var item = { row: row, name: ctx.item.name, url: ctx.item.url, address: ctx.item.address };
+  var r = resolveBatch(getAppId(), [item], loadDictionary(sheet.getParent()))[0];
+  writeResult(sheet, ctx.cols.output + 1, row, r);
+  var store = loadCandidateStore(sheet.getParent());
+  var key = storeKey(sheet, row);
+  if (r.status === STATUS.REVIEW) store.entries[key] = { inputName: item.name, candidates: r.candidates };
+  else delete store.entries[key];
+  saveCandidateStore(store);
+  return { status: r.status, candidates: r.candidates || [], reviewStatus: STATUS.REVIEW };
 }
 
 function lookupNumberForReview(number) {

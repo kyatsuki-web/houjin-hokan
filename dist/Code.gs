@@ -759,7 +759,7 @@ function processSheet(sheet, deadline) {
     results.forEach(function (r, i) {
       writeResult(sheet, outStart, batch[i].row, r);
       counts[r.status] = (counts[r.status] || 0) + 1;
-      var key = storeKey(sheet.getName(), batch[i].row);
+      var key = storeKey(sheet, batch[i].row);
       if (r.status === STATUS.REVIEW) store.entries[key] = { inputName: batch[i].name, candidates: r.candidates };
       else delete store.entries[key];
     });
@@ -872,7 +872,7 @@ function resetSelectedRows() {
   out.clearContent();
   sheet.getRange(first, cols.output + 1, last - first + 1, 1).setBackground(null);
   var store = loadCandidateStore(sheet.getParent());
-  for (var r = first; r <= last; r++) delete store.entries[storeKey(sheet.getName(), r)];
+  for (var r = first; r <= last; r++) delete store.entries[storeKey(sheet, r)];
   saveCandidateStore(store);
   SpreadsheetApp.getActive().toast((last - first + 1) + '行をクリアしました。「補完を実行」で再判定します', MENU_TITLE, 6);
 }
@@ -929,8 +929,9 @@ function rememberInDictionary(ss, item, corp) {
 
 // ---- 候補の保存先(非表示シート) ----
 
-function storeKey(sheetName, row) {
-  return sheetName + '!' + row;
+// シート名は変えられるので、変わらないシートIDで紐づける
+function storeKey(sheet, row) {
+  return sheet.getSheetId() + '!' + row;
 }
 
 function loadCandidateStore(ss) {
@@ -978,7 +979,7 @@ function getReviewItems() {
   values.forEach(function (v, i) {
     if (String(v[cols.output]) !== STATUS.REVIEW) return;
     var row = i + 2;
-    var entry = store.entries[storeKey(sheet.getName(), row)];
+    var entry = store.entries[storeKey(sheet, row)];
     var name = String(v[cols.name] || '');
     items.push({
       row: row,
@@ -1040,8 +1041,22 @@ function markNoMatch(sheetName, row, expectedName) {
 
 function dropStoredCandidates(sheet, row) {
   var store = loadCandidateStore(sheet.getParent());
-  delete store.entries[storeKey(sheet.getName(), row)];
+  delete store.entries[storeKey(sheet, row)];
   saveCandidateStore(store);
+}
+
+function refreshCandidates(sheetName, row, expectedName) {
+  var sheet = reviewSheet(sheetName);
+  var ctx = rowItem(sheet, row, expectedName);
+  var item = { row: row, name: ctx.item.name, url: ctx.item.url, address: ctx.item.address };
+  var r = resolveBatch(getAppId(), [item], loadDictionary(sheet.getParent()))[0];
+  writeResult(sheet, ctx.cols.output + 1, row, r);
+  var store = loadCandidateStore(sheet.getParent());
+  var key = storeKey(sheet, row);
+  if (r.status === STATUS.REVIEW) store.entries[key] = { inputName: item.name, candidates: r.candidates };
+  else delete store.entries[key];
+  saveCandidateStore(store);
+  return { status: r.status, candidates: r.candidates || [], reviewStatus: STATUS.REVIEW };
 }
 
 function lookupNumberForReview(number) {
